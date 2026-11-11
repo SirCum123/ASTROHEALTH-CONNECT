@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASTROHEALTH CONNECT</title>
+<style>
+:root{--bg:#081321;--panel:#14263d;--card:#1b304a;--blue:#55c5ff;--muted:#abc0d4;--green:#7ce5ad;--yellow:#ffcf79}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#eef6ff;font-family:Arial,sans-serif}
+header{padding:22px;background:#10243b;border-bottom:2px solid #2589bd}
+h1{margin:0;color:var(--blue);letter-spacing:2px}header p,.muted{color:var(--muted)}
+main{max-width:1000px;margin:auto;padding:18px}.panel{background:var(--panel);border:1px solid #29435f;border-radius:13px;padding:18px;margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
+.metric{background:var(--card);padding:16px;border-radius:10px;border-left:4px solid var(--blue)}
+.metric small{color:var(--muted)}.value{font-size:29px;font-weight:bold;color:var(--blue);margin:8px 0}
+button{background:#168bc6;color:white;border:0;padding:12px 17px;border-radius:8px;font-weight:bold}
+button:active{opacity:.8}.status{padding:12px;border-radius:8px;background:#174a39;color:#a5f5c7;margin-top:12px}
+.warn{background:#62451e;color:#ffe1a9}.muted{font-size:13px;line-height:1.5}
+table{width:100%;border-collapse:collapse}td{padding:9px;border-bottom:1px solid #304760}
+footer{text-align:center;color:#829bb2;padding:20px;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+<h1>ASTROHEALTH CONNECT</h1>
+<p>Panel biométrico conectado a Health Connect</p>
+</header>
+<main>
+<section class="panel">
+<h2>Conexión de datos</h2>
+<p class="muted">Pulsa el botón para solicitar permisos y consultar los registros que tu reloj haya sincronizado con Health Connect durante las últimas 24 horas.</p>
+<button onclick="requestData()">Autorizar / actualizar datos</button>
+<div id="status" class="status">Esperando autorización.</div>
+<p class="muted">Esta aplicación consulta registros sincronizados. No es un monitor en vivo y no sustituye un dispositivo médico.</p>
+</section>
+<section class="panel">
+<h2>Mediciones recibidas</h2>
+<div class="grid">
+<div class="metric"><small>Frecuencia cardíaca más reciente</small><div class="value" id="heart">—</div><small id="heartTime">Sin registro</small></div>
+<div class="metric"><small>Oxígeno en sangre más reciente</small><div class="value" id="spo2">—</div><small id="spo2Time">Sin registro</small></div>
+<div class="metric"><small>Pasos acumulados (24 h)</small><div class="value" id="steps">—</div><small>Health Connect</small></div>
+<div class="metric"><small>Presión arterial</small><div class="value" id="bp">—</div><small id="bpTime">Sin registro</small></div>
+<div class="metric"><small>Temperatura corporal</small><div class="value" id="bodyTemp">—</div><small id="tempTime">Sin registro</small></div>
+<div class="metric"><small>Último sueño</small><div class="value" id="sleep">—</div><small id="sleepTime">Sin registro</small></div>
+</div>
+</section>
+<section class="panel">
+<h2>Información del último envío</h2>
+<table>
+<tr><td>Fuente</td><td id="source">—</td></tr>
+<tr><td>Consulta realizada</td><td id="retrieved">—</td></tr>
+<tr><td>Periodo consultado</td><td id="window">—</td></tr>
+</table>
+<p class="muted" id="note">Los campos sin datos pueden significar que el reloj no mide esa variable, que la aplicación del reloj no la sincronizó o que no hay registros en el periodo consultado.</p>
+</section>
+</main>
+<footer>Prototipo educativo. Los valores no son diagnósticos ni alertas médicas.</footer>
+<script>
+function requestData(){
+  const s=document.getElementById("status");
+  if(window.AstroHealthAndroid && AstroHealthAndroid.requestHealthData){
+    s.textContent="Solicitando permisos y consultando Health Connect…";
+    s.className="status";
+    AstroHealthAndroid.requestHealthData();
+  } else {
+    s.textContent="Abre esta página desde la aplicación Android ASTROHEALTH CONNECT.";
+    s.className="status warn";
+  }
+}
+function onHealthConnectResult(jsonText){
+  const d=JSON.parse(jsonText);
+  const s=document.getElementById("status");
+  if(!d.ok){
+    s.textContent=d.message||"No se pudieron leer los datos.";
+    s.className="status warn";
+    return;
+  }
+  document.getElementById("heart").textContent=d.heartRate==null?"Sin dato":d.heartRate+" BPM";
+  document.getElementById("spo2").textContent=d.spo2==null?"Sin dato":Number(d.spo2).toFixed(1)+"%";
+  document.getElementById("steps").textContent=d.steps24h==null?"Sin dato":Number(d.steps24h).toLocaleString("es-CO");
+  document.getElementById("bp").textContent=(d.systolic==null || d.diastolic==null)?"Sin dato":Math.round(d.systolic)+"/"+Math.round(d.diastolic);
+  document.getElementById("bpTime").textContent=d.bloodPressureTime?new Date(d.bloodPressureTime).toLocaleString():"Sin registro";
+  document.getElementById("bodyTemp").textContent=d.bodyTempC==null?"Sin dato":Number(d.bodyTempC).toFixed(1)+" °C";
+  document.getElementById("tempTime").textContent=d.bodyTempTime?new Date(d.bodyTempTime).toLocaleString():"Sin registro";
+  if(d.sleepStart && d.sleepEnd){
+    const hrs=(new Date(d.sleepEnd)-new Date(d.sleepStart))/3600000;
+    document.getElementById("sleep").textContent=hrs.toFixed(1)+" h";
+    document.getElementById("sleepTime").textContent=new Date(d.sleepStart).toLocaleDateString();
+  } else {
+    document.getElementById("sleep").textContent="Sin dato";
+    document.getElementById("sleepTime").textContent="Sin registro";
+  }
+  document.getElementById("heartTime").textContent=d.heartRateTime?new Date(d.heartRateTime).toLocaleString():"Sin registro reciente";
+  document.getElementById("spo2Time").textContent=d.spo2Time?new Date(d.spo2Time).toLocaleString():"Sin registro reciente";
+  document.getElementById("source").textContent=d.source;
+  document.getElementById("retrieved").textContent=new Date(d.retrievedAt).toLocaleString();
+  document.getElementById("window").textContent=d.window;
+  document.getElementById("note").textContent=d.note;
+  s.textContent="Consulta completada. Los datos disponibles se actualizaron.";
+  s.className="status";
+}
+</script>
+</body>
+</html>
